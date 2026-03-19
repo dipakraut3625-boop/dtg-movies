@@ -33,18 +33,20 @@ export default function MoviePage() {
         console.error("Video API error:", e);
       }
 
-      let trailer =
-        vidData?.results?.find(
-          (v: any) => v.type === "Trailer" && v.site === "YouTube"
-        ) ||
-        vidData?.results?.find((v: any) => v.site === "YouTube");
+      let trailer: any =
+  vidData?.results?.find(
+    (v: any) => v.type === "Trailer" && v.site === "YouTube"
+  ) ||
+  vidData?.results?.find(
+    (v: any) => v.site === "YouTube"
+  );
 
       if (!trailer) {
-        trailer = {
-          key: encodeURIComponent(`${data.title || "movie"} trailer`),
-          isSearch: true,
-        };
-      }
+   trailer = {
+    key: encodeURIComponent(`${data.title || "movie"} trailer`),
+    isSearch: true,
+  };
+}
 
       setVideo(trailer);
 

@@ -58,29 +58,6 @@ export default function Home() {
         <div className="px-10 mt-6">
   <div className="relative max-w-3xl">
 
-    {/* ICON */}
-    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 text-lg">
-      🔍
-    </span>
-
-    {/* INPUT */}
-    <input
-      type="text"
-      placeholder="Search movies, series..."
-      className="
-        w-full
-        bg-zinc-900/80
-        backdrop-blur-md
-        text-white
-        pl-12 pr-4 py-3
-        rounded-xl
-        outline-none
-        border border-zinc-800
-        focus:border-orange-500
-        focus:ring-1 focus:ring-orange-500
-        transition
-      "
-    />
 
   </div>
           {/* LOADING */}

@@ -16,7 +16,7 @@ export default function WatchlistPage() {
     setMovies(data || []);
   };
 
-  const handleRemove = async (id: string) => {
+  const handleRemove = async (id: number) => {
     await removeMovie(id);
     loadMovies();
   };
@@ -64,7 +64,7 @@ export default function WatchlistPage() {
               </p>
 
               <button
-                onClick={() => handleRemove(movie.movie_id)}
+                onClick={() => handleRemove(Number(movie.movie_id))}
                 className="mt-2 bg-red-500 text-xs px-2 py-1 rounded hover:bg-red-600"
               >
                 Remove
