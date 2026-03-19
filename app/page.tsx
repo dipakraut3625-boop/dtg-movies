@@ -1,65 +1,119 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState } from "react";
+import {
+  getTrendingMovies,
+  getTopRated,
+  getUpcoming,
+  searchMovies,
+} from "./lib/tmdb";
+
+import RowSection from "./components/RowSection";
 
 export default function Home() {
+  const [query, setQuery] = useState("");
+  const [movies, setMovies] = useState<any[]>([]);
+  const [trending, setTrending] = useState<any[]>([]);
+  const [topRated, setTopRated] = useState<any[]>([]);
+  const [upcoming, setUpcoming] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // 🔥 Load default data
+  useEffect(() => {
+    const loadData = async () => {
+      const t = await getTrendingMovies();
+      const top = await getTopRated();
+      const up = await getUpcoming();
+
+      setTrending(t);
+      setTopRated(top);
+      setUpcoming(up);
+    };
+
+    loadData();
+  }, []);
+
+  // 🔥 LIVE SEARCH (Debounce)
+  useEffect(() => {
+    if (!query) {
+      setMovies([]);
+      return;
+    }
+
+    const delay = setTimeout(async () => {
+      setLoading(true);
+      const results = await searchMovies(query);
+      setMovies(results);
+      setLoading(false);
+    }, 500); // 500ms delay
+
+    return () => clearTimeout(delay);
+  }, [query]);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="min-h-screen bg-black text-white">
+      <div className="max-w-7xl mx-auto px-6">
+
+        {/* 🔍 SEARCH BAR */}
+        <div className="px-10 mt-6">
+  <div className="relative max-w-3xl">
+
+    {/* ICON */}
+    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 text-lg">
+      🔍
+    </span>
+
+    {/* INPUT */}
+    <input
+      type="text"
+      placeholder="Search movies, series..."
+      className="
+        w-full
+        bg-zinc-900/80
+        backdrop-blur-md
+        text-white
+        pl-12 pr-4 py-3
+        rounded-xl
+        outline-none
+        border border-zinc-800
+        focus:border-orange-500
+        focus:ring-1 focus:ring-orange-500
+        transition
+      "
+    />
+
+  </div>
+          {/* LOADING */}
+          {loading && (
+            <p className="absolute right-4 top-4 text-sm text-orange-400">
+              Searching...
+            </p>
+          )}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+
+        {/* 🔍 SEARCH RESULTS */}
+        {query && (
+          <>
+            {loading ? (
+              <p className="text-zinc-400">Loading...</p>
+            ) : movies.length > 0 ? (
+              <RowSection title="🔍 Results" movies={movies} />
+            ) : (
+              <p className="text-zinc-500">No results found 😢</p>
+            )}
+          </>
+        )}
+
+        {/* 🎬 NORMAL CONTENT */}
+        {!query && (
+          <>
+            <RowSection title="🔥 Trending" movies={trending} />
+            <RowSection title="⭐ Top Rated" movies={topRated} />
+            <RowSection title="🎬 Upcoming" movies={upcoming} />
+          </>
+        )}
+
+      </div>
     </div>
   );
 }
