@@ -15,15 +15,14 @@ export default function RootLayout({
         <Header />
 
         {/* ✅ ONLY ONE RENDER */}
-        <div className="pt-16 bg-black min-h-screen flex flex-col">
 
-  <div className="flex-1">
+
+ <div className="pt-16 ">
+  <PageTransition>
     {children}
-  </div>
-
-  <Footer />
-
+  </PageTransition>
 </div>
+  <Footer />
       </body>
     </html>
   );

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { Heart, Bookmark } from "lucide-react";
 
 export default function MoviePage() {
   const params = useParams();
@@ -10,6 +11,8 @@ export default function MoviePage() {
   const [video, setVideo] = useState<any>(null);
   const [credits, setCredits] = useState<any>(null);
   const [open, setOpen] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -64,7 +67,7 @@ export default function MoviePage() {
   if (!movie) return <p className="p-6">Loading...</p>;
 
   return (
-    <div className="bg-black text-white min-h-screen">
+    <div className="bg-black text-white min-h-screen mt-[-4rem] pt-16">
 
       {/* 🔥 HERO */}
       <div className="relative h-[70vh] w-full overflow-hidden">
@@ -75,8 +78,40 @@ export default function MoviePage() {
           src={`https://image.tmdb.org/t/p/original${movie.backdrop_path}`}
           className="w-full h-full object-cover absolute inset-0"
         />
+        
 
         <div className="absolute bottom-10 left-10 flex gap-8 items-end z-20">
+          <div className="absolute top-24 right-10 flex gap-3 z-30">
+
+  {/* ❤️ LIKE */}
+  <button
+    onClick={() => setLiked(!liked)}
+    className="p-2 rounded-full bg-black/50 backdrop-blur-md hover:scale-110 transition"
+  >
+    <Heart
+      className={`w-6 h-6 transition-all duration-200 ${
+        liked
+          ? "fill-red-500 text-red-500 drop-shadow-[0_0_12px_red] scale-110"
+          : "text-white"
+      }`}
+    />
+  </button>
+
+  {/* 🔖 WATCHLIST */}
+  <button
+    onClick={() => setSaved(!saved)}
+    className="p-2 rounded-full bg-black/50 backdrop-blur-md hover:scale-110 transition"
+  >
+    <Bookmark
+      className={`w-6 h-6 transition-all duration-200 ${
+        saved
+          ? "fill-white text-white drop-shadow-[0_0_12px_white] scale-110"
+          : "text-white"
+      }`}
+    />
+  </button>
+
+</div>
 
           {/* POSTER */}
           <img

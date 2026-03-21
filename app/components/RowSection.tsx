@@ -17,7 +17,7 @@ export default function RowSection({ title, movies }: any) {
   };
 
   return (
-    <div className="mb-10 px-6 relative group">
+    <div className="mb-10 px-6 relative group overflow-visible">
 
       <h2 className="text-xl font-semibold mb-4">{title}</h2>
 
