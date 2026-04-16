@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react"; // ✅ FIX
-import { Heart, Bookmark } from "lucide-react"; // ✅ FIX
+import { useState, useEffect } from "react";
+import { Heart, Bookmark } from "lucide-react";
+import { supabase } from "../lib/supabase";
 
 export default function MovieCard({
   movie,
@@ -14,6 +15,94 @@ export default function MovieCard({
 
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  // 🔥 LOAD STATE FROM DB
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) return;
+
+      const userId = data.user.id;
+
+      const { data: likedData } = await supabase
+        .from("likes")
+        .select("movie_id")
+        .eq("user_id", userId);
+
+      const { data: savedData } = await supabase
+        .from("watchlist")
+        .select("movie_id")
+        .eq("user_id", userId);
+
+      setLiked(
+        likedData?.some((m) => Number(m.movie_id) === movie.id)
+      );
+
+      setSaved(
+        savedData?.some((m) => Number(m.movie_id) === movie.id)
+      );
+    };
+
+    load();
+  }, [movie.id]);
+
+  // ❤️ LIKE
+  const handleLike = async (e: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const newState = !liked;
+    setLiked(newState); // instant UI
+
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) return alert("Login required");
+
+    const userId = data.user.id;
+
+    if (newState) {
+      const { error } = await supabase.from("likes").upsert({
+        user_id: userId,
+        movie_id: movie.id,
+      });
+
+      if (error) console.log("LIKE ERROR:", error);
+    } else {
+      await supabase
+        .from("likes")
+        .delete()
+        .eq("user_id", userId)
+        .eq("movie_id", movie.id);
+    }
+  };
+
+  // 🔖 WATCHLIST
+  const handleSave = async (e: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const newState = !saved;
+    setSaved(newState);
+
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) return alert("Login required");
+
+    const userId = data.user.id;
+
+    if (newState) {
+      const { error } = await supabase.from("watchlist").upsert({
+        user_id: userId,
+        movie_id: movie.id,
+      });
+
+      if (error) console.log("SAVE ERROR:", error);
+    } else {
+      await supabase
+        .from("watchlist")
+        .delete()
+        .eq("user_id", userId)
+        .eq("movie_id", movie.id);
+    }
+  };
 
   return (
     <div
@@ -27,69 +116,52 @@ export default function MovieCard({
       <Link href={`/movie/${movie.id}`}>
         <div
           className={`
-            relative rounded-2xl overflow-hidden will-change-transform
-            transition-all duration-300
-            ${
-              isActive
-                ? "hover:scale-105 transform-gpu hover:z-50 z-50 origin-center"
-                : "scale-100 z-10"
-            }
+            relative rounded-2xl overflow-hidden transition-all duration-300
+            ${isActive ? "hover:scale-105 z-50" : "scale-100 z-10"}
           `}
         >
-          {/* IMAGE */}
+          {/* 🎬 IMAGE */}
           <img
             src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
             className="w-full h-full object-cover"
           />
 
-          {/* 🔥 ICONS */}
-          <div className="absolute top-2 right-2 flex gap-2 z-50">
-            
-            {/* 🔥 ICONS (ONLY ON ACTIVE CARD) */}
-{isActive && (
-  <div className="absolute top-2 right-2 flex gap-2 z-50 animate-fadeIn">
-    
-    {/* ❤️ LIKE */}
-    <button
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setLiked(!liked);
-      }}
-      className="p-1.5 rounded-full bg-black/60 backdrop-blur hover:scale-110 transition"
-    >
-      <Heart
-        className={`w-5 h-5 transition-all duration-200 ${
-          liked
-            ? "fill-red-500 text-red-500 drop-shadow-[0_0_10px_red] scale-110"
-            : "text-white"
-        }`}
-      />
-    </button>
+          {/* 🔥 ACTION ICONS */}
+          {isActive && (
+            <div className="absolute top-2 right-2 flex gap-2 z-50 animate-fadeIn">
 
-    {/* 🔖 WATCHLIST */}
-    <button
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setSaved(!saved);
-      }}
-      className="p-1.5 rounded-full bg-black/60 backdrop-blur hover:scale-110 transition"
-    >
-      <Bookmark
-        className={`w-5 h-5 transition-all duration-200 ${
-          saved
-            ? "fill-white text-white drop-shadow-[0_0_10px_white] scale-110"
-            : "text-white"
-        }`}
-      />
-    </button>
+              {/* ❤️ LIKE */}
+              <button
+                onClick={handleLike}
+                className="p-1.5 rounded-full bg-black/60 backdrop-blur hover:scale-110 transition"
+              >
+                <Heart
+                  className={`w-5 h-5 transition-all duration-200 ${
+                    liked
+                      ? "fill-red-500 text-red-500 drop-shadow-[0_0_10px_red] scale-110"
+                      : "text-white"
+                  }`}
+                />
+              </button>
 
-  </div>
-)}
-          </div>
+              {/* 🔖 SAVE */}
+              <button
+                onClick={handleSave}
+                className="p-1.5 rounded-full bg-black/60 backdrop-blur hover:scale-110 transition"
+              >
+                <Bookmark
+                  className={`w-5 h-5 transition-all duration-200 ${
+                    saved
+                      ? "fill-white text-white drop-shadow-[0_0_10px_white] scale-110"
+                      : "text-white"
+                  }`}
+                />
+              </button>
 
-          {/* 🔥 POPUP */}
+            </div>
+          )}
+
+          {/* 🎥 POPUP */}
           {isActive && (
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent flex flex-col justify-end p-3">
               <p className="text-white text-sm font-semibold">
@@ -100,14 +172,7 @@ export default function MovieCard({
                 ⭐ {movie.vote_average?.toFixed(1)}
               </p>
 
-              <button
-                className="
-                mt-2 flex items-center justify-center gap-1
-                bg-white text-black 
-                px-3 py-1 rounded-md text-xs font-medium
-                hover:bg-gray-200 transition
-                "
-              >
+              <button className="mt-2 bg-white text-black px-3 py-1 rounded-md text-xs hover:bg-gray-200 transition">
                 ℹ More Info
               </button>
             </div>
@@ -115,6 +180,7 @@ export default function MovieCard({
         </div>
       </Link>
 
+      {/* TITLE */}
       <p className="mt-2 text-sm text-zinc-400">
         {movie.title}
       </p>

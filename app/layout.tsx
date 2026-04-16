@@ -2,6 +2,7 @@ import "./globals.css";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import PageTransition from "./components/PageTransition";
+import AuthWrapper from "./components/AuthWrapper"; // 👈 NEW
 
 export default function RootLayout({
   children,
@@ -14,15 +15,15 @@ export default function RootLayout({
 
         <Header />
 
-        {/* ✅ ONLY ONE RENDER */}
+        <div className="mt-16">
+          <PageTransition>{children}</PageTransition>
+        </div>
 
+        <Footer />
 
- <div className="pt-16 ">
-  <PageTransition>
-    {children}
-  </PageTransition>
-</div>
-  <Footer />
+        {/* ✅ AUTH HANDLED HERE */}
+        <AuthWrapper />
+
       </body>
     </html>
   );
