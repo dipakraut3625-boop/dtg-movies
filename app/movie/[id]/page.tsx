@@ -1,21 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Heart, Bookmark } from "lucide-react";
+import { supabase } from "../../lib/supabase";
 
 export default function MoviePage() {
   const params = useParams();
+  const router = useRouter();
 
   const [movie, setMovie] = useState<any>(null);
   const [video, setVideo] = useState<any>(null);
   const [credits, setCredits] = useState<any>(null);
-  const [open, setOpen] = useState(false);
+
+  const [user, setUser] = useState<any>(null);
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [selected, setSelected] = useState("timepass");
+  const [reviewText, setReviewText] = useState("");
+
   useEffect(() => {
-    const fetchData = async () => {
+    const load = async () => {
       // 🎬 Movie
       const res = await fetch(
         `https://api.themoviedb.org/3/movie/${params.id}?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}`
@@ -23,292 +30,295 @@ export default function MoviePage() {
       const data = await res.json();
       setMovie(data);
 
+      // 👤 User
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setUser(user);
+
       // 🎥 Trailer
-      const vidRes = await fetch(
-        `https://api.themoviedb.org/3/movie/${params.id}/videos?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}`
-      );
-
-      let vidData = { results: [] };
-
+      let trailer: any = null;
       try {
-        vidData = await vidRes.json();
-      } catch (e) {
-        console.error("Video API error:", e);
+        const vidRes = await fetch(
+          `https://api.themoviedb.org/3/movie/${params.id}/videos?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}`
+        );
+        const vidData = await vidRes.json();
+
+        trailer =
+          vidData?.results?.find(
+            (v: any) => v.type === "Trailer" && v.site === "YouTube"
+          ) ||
+          vidData?.results?.find((v: any) => v.site === "YouTube");
+      } catch {}
+
+      if (!trailer && data?.title) {
+        trailer = {
+          key: encodeURIComponent(`${data.title} trailer`),
+          isSearch: true,
+        };
       }
-
-      let trailer: any =
-  vidData?.results?.find(
-    (v: any) => v.type === "Trailer" && v.site === "YouTube"
-  ) ||
-  vidData?.results?.find(
-    (v: any) => v.site === "YouTube"
-  );
-
-      if (!trailer) {
-   trailer = {
-    key: encodeURIComponent(`${data.title || "movie"} trailer`),
-    isSearch: true,
-  };
-}
 
       setVideo(trailer);
 
-      // 👥 Cast + Crew
+      // 🎭 CAST
       const creditRes = await fetch(
         `https://api.themoviedb.org/3/movie/${params.id}/credits?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}`
       );
-      const creditData = await creditRes.json();
-      setCredits(creditData);
+      setCredits(await creditRes.json());
+
+      // ❤️ LIKE + WATCHLIST
+      if (user) {
+        const { data: likeData } = await supabase
+          .from("likes")
+          .select("movie_id")
+          .eq("user_id", user.id)
+          .eq("movie_id", params.id)
+          .single();
+
+        const { data: saveData } = await supabase
+          .from("watchlist")
+          .select("movie_id")
+          .eq("user_id", user.id)
+          .eq("movie_id", params.id)
+          .single();
+
+        setLiked(!!likeData);
+        setSaved(!!saveData);
+      }
+
+      // 🔥 REVIEWS
+      const { data: reviewData } = await supabase
+        .from("reviews")
+        .select("*")
+        .eq("movie_id", params.id)
+        .order("created_at", { ascending: false });
+
+      setReviews(reviewData || []);
     };
 
-    fetchData();
+    load();
   }, [params.id]);
 
   if (!movie) return <p className="p-6">Loading...</p>;
 
+  const timeAgo = (date: string) => {
+    const diff = (Date.now() - new Date(date).getTime()) / 1000;
+    if (diff < 60) return "just now";
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+  };
+
   return (
     <div className="bg-black text-white min-h-screen mt-[-4rem] pt-16">
 
-      {/* 🔥 HERO */}
+      {/* HERO */}
       <div className="relative h-[70vh] w-full overflow-hidden">
-
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-black/30 z-10" />
 
         <img
           src={`https://image.tmdb.org/t/p/original${movie.backdrop_path}`}
           className="w-full h-full object-cover absolute inset-0"
         />
-        
 
         <div className="absolute bottom-10 left-10 flex gap-8 items-end z-20">
+
+          {/* ❤️ 🔖 */}
           <div className="absolute top-24 right-10 flex gap-3 z-30">
 
-  {/* ❤️ LIKE */}
-  <button
-    onClick={() => setLiked(!liked)}
-    className="p-2 rounded-full bg-black/50 backdrop-blur-md hover:scale-110 transition"
-  >
-    <Heart
-      className={`w-6 h-6 transition-all duration-200 ${
-        liked
-          ? "fill-red-500 text-red-500 drop-shadow-[0_0_12px_red] scale-110"
-          : "text-white"
-      }`}
-    />
-  </button>
+            <button
+              onClick={async () => {
+                if (!user) return alert("Login required");
 
-  {/* 🔖 WATCHLIST */}
-  <button
-    onClick={() => setSaved(!saved)}
-    className="p-2 rounded-full bg-black/50 backdrop-blur-md hover:scale-110 transition"
-  >
-    <Bookmark
-      className={`w-6 h-6 transition-all duration-200 ${
-        saved
-          ? "fill-white text-white drop-shadow-[0_0_12px_white] scale-110"
-          : "text-white"
-      }`}
-    />
-  </button>
+                if (!liked) {
+                  setLiked(true);
+                  await supabase.from("likes").insert({
+                    user_id: user.id,
+                    movie_id: movie.id,
+                  });
+                } else {
+                  setLiked(false);
+                  await supabase
+                    .from("likes")
+                    .delete()
+                    .eq("user_id", user.id)
+                    .eq("movie_id", movie.id);
+                }
+              }}
+              className="p-2 rounded-full bg-black/50"
+            >
+              <Heart className={`w-6 h-6 ${liked ? "fill-red-500 text-red-500" : ""}`} />
+            </button>
 
-</div>
+            <button
+              onClick={async () => {
+                if (!user) return alert("Login required");
 
-          {/* POSTER */}
+                if (!saved) {
+                  setSaved(true);
+                  await supabase.from("watchlist").insert({
+                    user_id: user.id,
+                    movie_id: movie.id,
+                  });
+                } else {
+                  setSaved(false);
+                  await supabase
+                    .from("watchlist")
+                    .delete()
+                    .eq("user_id", user.id)
+                    .eq("movie_id", movie.id);
+                }
+              }}
+              className="p-2 rounded-full bg-black/50"
+            >
+              <Bookmark className={`w-6 h-6 ${saved ? "fill-white text-white" : ""}`} />
+            </button>
+
+          </div>
+
           <img
             src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
             className="w-[220px] rounded-2xl shadow-2xl"
           />
 
-          {/* INFO */}
           <div className="max-w-xl">
-            <h1 className="text-4xl font-bold mb-2">
-              {movie.title}
-            </h1>
-
-            <div className="flex gap-4 text-sm text-zinc-300 mb-3">
-              <span>⭐ {movie.vote_average}</span>
-              <span>📅 {movie.release_date}</span>
-              <span>⏱ {movie.runtime} min</span>
-            </div>
-
-            <p className="text-zinc-300">
-              {movie.overview}
-            </p>
+            <h1 className="text-4xl font-bold">{movie.title}</h1>
+            <p className="mt-3 text-zinc-300">{movie.overview}</p>
           </div>
+
         </div>
       </div>
 
-      {/* 🔥 MAIN */}
-      <div className="px-10 py-10 grid grid-cols-3 gap-10">
+      {/* 🎬 TRAILER */}
+      <div className="px-10 py-16 max-w-6xl mx-auto">
+        <h2 className="text-2xl font-semibold mb-6">Trailer</h2>
 
-        {/* LEFT */}
-        <div className="col-span-2">
+        <div className="relative group rounded-xl overflow-hidden">
+          <div className="absolute -inset-2 bg-gradient-to-r from-orange-500 to-red-500 blur-xl opacity-30 group-hover:opacity-60 transition" />
 
-          {/* 🎥 WHERE TO WATCH */}
-          <h2 className="text-xl font-semibold mb-4">
-            Where to Watch
-          </h2>
-
-          <div className="flex items-center gap-4 mb-8">
-            {new Date(movie.release_date) > new Date() ? (
-              <div className="flex items-center gap-3 bg-yellow-500/20 px-4 py-2 rounded-lg">
-                <span>🎬</span>
-                <span className="font-semibold">In Theaters</span>
-              </div>
-            ) : (
-              <a
-                href={`https://www.justwatch.com/in/search?q=${movie.title}`}
-                target="_blank"
-                className="bg-zinc-800 px-4 py-2 rounded-lg hover:bg-zinc-700 transition"
-              >
-                ▶ Watch Online
-              </a>
-            )}
-          </div>
-
-          {/* 🎭 CAST */}
-          <h2 className="text-xl font-semibold mb-4">
-            Cast
-          </h2>
-
-          <div className="flex gap-4 overflow-x-auto pb-4">
-            {credits?.cast?.slice(0, 10).map((c: any, index: number) => (
-              <div
-                key={`${c.id}-${index}`}
-                className="text-center min-w-[100px]"
-              >
-                <img
-                  src={
-                    c.profile_path
-                      ? `https://image.tmdb.org/t/p/w200${c.profile_path}`
-                      : "/placeholder.png"
-                  }
-                  className="w-20 h-20 rounded-full object-cover mx-auto"
-                />
-
-                <p className="text-sm mt-2">{c.name}</p>
-                <p className="text-xs text-zinc-500">
-                  {c.character}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          {/* 🎬 DIRECTOR */}
-<h2 className="text-xl font-semibold mt-10 mb-4">
-  Director
-</h2>
-
-{(() => {
-  const director = credits?.crew?.find((c: any) => c.job === "Director");
-
-  if (!director) return <p className="text-zinc-400">N/A</p>;
-
-  return (
-    <div className="flex gap-4 overflow-x-auto pb-4">
-
-      <div className="text-center min-w-[100px]">
-
-        <img
-          src={
-            director.profile_path
-              ? `https://image.tmdb.org/t/p/w200${director.profile_path}`
-              : "/placeholder.png"
-          }
-          className="w-20 h-20 rounded-full object-cover mx-auto"
-        />
-
-        <p className="text-sm mt-2">
-          {director.name}
-        </p>
-
-        <p className="text-xs text-zinc-500">
-          Director
-        </p>
-
-      </div>
-
-    </div>
-  );
-})()}
-        </div>
-
-        {/* RIGHT */}
-        <div>
-          <div className="bg-gradient-to-br from-zinc-900 to-zinc-800 p-6 rounded-2xl shadow-xl border border-zinc-700">
-
-            <h3 className="mb-5 font-semibold text-lg">
-              Details
-            </h3>
-
-            <div className="space-y-3 text-sm text-zinc-300">
-              <p>🌍 Language: {movie.original_language.toUpperCase()}</p>
-              <p>⭐ Rating: {movie.vote_average}</p>
-              <p>🔥 Popularity: {Math.round(movie.popularity)}</p>
-              <p>👍 Votes: {movie.vote_count}</p>
-              <p>📅 Release: {movie.release_date}</p>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      {/* 🎥 TRAILER (PRO STYLE) */}
-<div className="px-10 pb-16">
-
-  <h2 className="text-2xl font-semibold mb-6">
-    Trailer
-  </h2>
-
-  <div className="flex justify-center">
-
-    <div className="w-full max-w-5xl aspect-video rounded-2xl overflow-hidden shadow-2xl border border-zinc-800 bg-black">
-
-      <iframe
-        className="w-full h-full block"
-        src={
-          video?.isSearch
-            ? `https://www.youtube.com/embed?listType=search&list=${video.key}&rel=0`
-            : `https://www.youtube.com/embed/${video?.key}?rel=0`
-        }
-        allowFullScreen
-      />
-
-    </div>
-
-  </div>
-
-</div>
-
-      {/* 🎥 MODAL */}
-      {open && video && (
-        <div
-          className="fixed inset-0 bg-black/90 flex items-center justify-center z-50"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="w-[90%] max-w-5xl aspect-video relative"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setOpen(false)}
-              className="absolute -top-10 right-0 text-white text-2xl"
-            >
-              ✕
-            </button>
-
+          {video ? (
             <iframe
-              className="w-full h-full rounded-xl"
+              className="relative w-full aspect-video rounded-xl"
               src={
-                video.isSearch
-                  ? `https://www.youtube.com/embed?listType=search&list=${video.key}&autoplay=1`
-                  : `https://www.youtube.com/embed/${video.key}?autoplay=1`
+                video?.isSearch
+                  ? `https://www.youtube.com/embed?listType=search&list=${video.key}`
+                  : `https://www.youtube.com/embed/${video.key}`
               }
               allowFullScreen
             />
-          </div>
+          ) : (
+            <div className="w-full aspect-video bg-zinc-800 rounded-xl animate-pulse" />
+          )}
         </div>
-      )}
+      </div>
+
+      {/* 🎭 CAST */}
+      <div className="px-10 pb-20 max-w-6xl mx-auto">
+        <h2 className="text-2xl font-semibold mb-6">Cast</h2>
+
+        <div className="flex gap-4 overflow-x-auto no-scrollbar">
+          {credits?.cast?.slice(0, 12).map((actor: any) => (
+            <div
+              key={actor.id}
+              onClick={() => router.push(`/actor/${actor.id}`)}
+              className="min-w-[120px] text-center cursor-pointer hover:scale-105 transition"
+            >
+              <img
+                src={
+                  actor.profile_path
+                    ? `https://image.tmdb.org/t/p/w200${actor.profile_path}`
+                    : "/no-avatar.png"
+                }
+                className="w-[100px] h-[100px] object-cover rounded-full mx-auto mb-2"
+              />
+              <p className="text-sm">{actor.name}</p>
+              <p className="text-xs text-zinc-400">{actor.character}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ⭐ REVIEW INPUT (FIXED) */}
+      <div className="px-10 py-10 max-w-2xl mx-auto">
+        <div className="flex gap-2 mb-4">
+          {["skip", "timepass", "go", "perfect"].map((r) => (
+            <button
+              key={r}
+              onClick={() => setSelected(r)}
+              className={`px-4 py-2 rounded-full ${
+                selected === r
+                  ? "bg-yellow-400 text-black"
+                  : "bg-zinc-800"
+              }`}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+
+        <textarea
+          placeholder="Write your review..."
+          value={reviewText}
+          onChange={(e) => setReviewText(e.target.value)}
+          className="w-full border-b border-zinc-700 bg-transparent p-2"
+        />
+
+        <button
+          onClick={async () => {
+            if (!user) return alert("Login required");
+
+            await supabase.from("reviews").insert({
+              movie_id: params.id,
+              reaction: selected,
+              review: reviewText,
+              user_id: user.id,
+            });
+
+            const { data } = await supabase
+              .from("reviews")
+              .select("*")
+              .eq("movie_id", params.id)
+              .order("created_at", { ascending: false });
+
+            setReviews(data || []);
+            setReviewText("");
+          }}
+          className="mt-4 bg-white text-black px-5 py-2 rounded-full"
+        >
+          Post Review
+        </button>
+      </div>
+
+      {/* 🔥 REVIEW FEED */}
+      <div className="px-10 pb-20 max-w-2xl mx-auto space-y-6">
+        {reviews.map((r, i) => {
+          const name = r.user_id?.slice(0, 6) || "User";
+
+          return (
+            <div key={i} className="bg-zinc-900 p-5 rounded-xl border border-zinc-800">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center">
+                  {name[0]}
+                </div>
+
+                <div>
+                  <p className="text-sm font-semibold">{name}</p>
+                  <p className="text-xs text-zinc-400">
+                    {timeAgo(r.created_at)}
+                  </p>
+                </div>
+
+                <span className="ml-auto text-xs bg-yellow-400 text-black px-3 py-1 rounded-full">
+                  {r.reaction}
+                </span>
+              </div>
+
+              <p className="text-zinc-300 text-sm">{r.review}</p>
+            </div>
+          );
+        })}
+      </div>
+
     </div>
   );
 }

@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
 import { Heart, Bookmark } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { useUserData } from "../lib/UserDataProvider";
+import { useState } from "react";
 
 export default function MovieCard({
   movie,
@@ -13,100 +14,105 @@ export default function MovieCard({
 }: any) {
   const router = useRouter();
 
-  const [liked, setLiked] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const {
+    likes,
+    watchlist,
+    setLikes,
+    setWatchlist,
+    loading,
+  } = useUserData();
 
-  // 🔥 LOAD STATE FROM DB
-  useEffect(() => {
-    const load = async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) return;
+  const [updating, setUpdating] = useState(false);
 
-      const userId = data.user.id;
-
-      const { data: likedData } = await supabase
-        .from("likes")
-        .select("movie_id")
-        .eq("user_id", userId);
-
-      const { data: savedData } = await supabase
-        .from("watchlist")
-        .select("movie_id")
-        .eq("user_id", userId);
-
-      setLiked(
-        likedData?.some((m) => Number(m.movie_id) === movie.id)
-      );
-
-      setSaved(
-        savedData?.some((m) => Number(m.movie_id) === movie.id)
-      );
-    };
-
-    load();
-  }, [movie.id]);
+  // ⚠️ DON'T hide card — just fallback
+  const liked = likes?.includes(movie.id) || false;
+  const saved = watchlist?.includes(movie.id) || false;
 
   // ❤️ LIKE
   const handleLike = async (e: any) => {
     e.preventDefault();
     e.stopPropagation();
 
-    const newState = !liked;
-    setLiked(newState); // instant UI
+    if (updating) return;
 
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) return alert("Login required");
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    const userId = data.user.id;
+    if (!user) return router.push("/login");
 
-    if (newState) {
-      const { error } = await supabase.from("likes").upsert({
-        user_id: userId,
-        movie_id: movie.id,
-      });
+    setUpdating(true);
 
-      if (error) console.log("LIKE ERROR:", error);
-    } else {
-      await supabase
-        .from("likes")
-        .delete()
-        .eq("user_id", userId)
-        .eq("movie_id", movie.id);
+    try {
+      if (!liked) {
+        setLikes((prev: number[]) => [...prev, movie.id]);
+
+        await supabase.from("likes").insert({
+          user_id: user.id,
+          movie_id: movie.id,
+        });
+      } else {
+        setLikes((prev: number[]) =>
+          prev.filter((id) => id !== movie.id)
+        );
+
+        await supabase
+          .from("likes")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("movie_id", movie.id);
+      }
+    } catch (err) {
+      console.log("Like error", err);
+    } finally {
+      setUpdating(false);
     }
   };
 
-  // 🔖 WATCHLIST
+  // 🔖 SAVE
   const handleSave = async (e: any) => {
     e.preventDefault();
     e.stopPropagation();
 
-    const newState = !saved;
-    setSaved(newState);
+    if (updating) return;
 
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) return alert("Login required");
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    const userId = data.user.id;
+    if (!user) return router.push("/login");
 
-    if (newState) {
-      const { error } = await supabase.from("watchlist").upsert({
-        user_id: userId,
-        movie_id: movie.id,
-      });
+    setUpdating(true);
 
-      if (error) console.log("SAVE ERROR:", error);
-    } else {
-      await supabase
-        .from("watchlist")
-        .delete()
-        .eq("user_id", userId)
-        .eq("movie_id", movie.id);
+    try {
+      if (!saved) {
+        setWatchlist((prev: number[]) => [...prev, movie.id]);
+
+        await supabase.from("watchlist").insert({
+          user_id: user.id,
+          movie_id: movie.id,
+        });
+      } else {
+        setWatchlist((prev: number[]) =>
+          prev.filter((id) => id !== movie.id)
+        );
+
+        await supabase
+          .from("watchlist")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("movie_id", movie.id);
+      }
+    } catch (err) {
+      console.log("Save error", err);
+    } finally {
+      setUpdating(false);
     }
   };
 
   return (
     <div
-      className="min-w-[170px] cursor-pointer"
+      className="min-w-[180px] cursor-pointer transition hover:scale-105"
       onMouseEnter={() => {
         setActive(movie.id);
         router.prefetch(`/movie/${movie.id}`);
@@ -114,76 +120,62 @@ export default function MovieCard({
       onMouseLeave={() => setActive(null)}
     >
       <Link href={`/movie/${movie.id}`}>
-        <div
-          className={`
-            relative rounded-2xl overflow-hidden transition-all duration-300
-            ${isActive ? "hover:scale-105 z-50" : "scale-100 z-10"}
-          `}
-        >
-          {/* 🎬 IMAGE */}
+        <div className="relative rounded-2xl overflow-hidden">
+
+          {/* IMAGE */}
           <img
             src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
-            className="w-full h-full object-cover"
+            className="w-full h-[260px] object-cover"
           />
 
-          {/* 🔥 ACTION ICONS */}
+          {/* OVERLAY */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+
+          {/* ICONS */}
           {isActive && (
-            <div className="absolute top-2 right-2 flex gap-2 z-50 animate-fadeIn">
+            <div className="absolute top-2 right-2 flex gap-2 z-50">
 
               {/* ❤️ LIKE */}
               <button
                 onClick={handleLike}
-                className="p-1.5 rounded-full bg-black/60 backdrop-blur hover:scale-110 transition"
+                className="bg-black/60 p-2 rounded-full backdrop-blur transition hover:scale-110"
               >
                 <Heart
                   className={`w-5 h-5 transition-all duration-200 ${
                     liked
-                      ? "fill-red-500 text-red-500 drop-shadow-[0_0_10px_red] scale-110"
+                      ? "fill-red-500 text-red-500 scale-110 drop-shadow-[0_0_6px_red]"
                       : "text-white"
-                  }`}
+                  } ${updating ? "opacity-50" : ""}`}
                 />
               </button>
 
               {/* 🔖 SAVE */}
               <button
                 onClick={handleSave}
-                className="p-1.5 rounded-full bg-black/60 backdrop-blur hover:scale-110 transition"
+                className="bg-black/60 p-2 rounded-full backdrop-blur transition hover:scale-110"
               >
                 <Bookmark
                   className={`w-5 h-5 transition-all duration-200 ${
                     saved
-                      ? "fill-white text-white drop-shadow-[0_0_10px_white] scale-110"
+                      ? "fill-white text-white scale-110 drop-shadow-[0_0_6px_white]"
                       : "text-white"
-                  }`}
+                  } ${updating ? "opacity-50" : ""}`}
                 />
               </button>
 
             </div>
           )}
 
-          {/* 🎥 POPUP */}
-          {isActive && (
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent flex flex-col justify-end p-3">
-              <p className="text-white text-sm font-semibold">
-                {movie.title}
-              </p>
+          {/* INFO */}
+          <div className="absolute bottom-0 p-3">
+            <p className="text-sm font-semibold">{movie.title}</p>
+            <p className="text-xs text-zinc-300">
+              ⭐ {movie.vote_average?.toFixed(1)}
+            </p>
+          </div>
 
-              <p className="text-xs text-zinc-300">
-                ⭐ {movie.vote_average?.toFixed(1)}
-              </p>
-
-              <button className="mt-2 bg-white text-black px-3 py-1 rounded-md text-xs hover:bg-gray-200 transition">
-                ℹ More Info
-              </button>
-            </div>
-          )}
         </div>
       </Link>
-
-      {/* TITLE */}
-      <p className="mt-2 text-sm text-zinc-400">
-        {movie.title}
-      </p>
     </div>
   );
 }

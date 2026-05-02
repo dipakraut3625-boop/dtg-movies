@@ -2,7 +2,8 @@ import "./globals.css";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import PageTransition from "./components/PageTransition";
-import AuthWrapper from "./components/AuthWrapper"; // 👈 NEW
+import AuthWrapper from "./components/AuthWrapper";
+import { UserDataProvider } from "./lib/UserDataProvider"; // ✅ FIX PATH
 
 export default function RootLayout({
   children,
@@ -13,16 +14,17 @@ export default function RootLayout({
     <html lang="en">
       <body className="bg-black text-white">
 
-        <Header />
+        <UserDataProvider>
 
-        <div className="mt-16">
-          <PageTransition>{children}</PageTransition>
-        </div>
+          <Header />
 
-        <Footer />
+          <div className="pt-20">
+            <PageTransition>{children}</PageTransition>
+          </div>
 
-        {/* ✅ AUTH HANDLED HERE */}
-        <AuthWrapper />
+          <Footer />
+
+        </UserDataProvider>
 
       </body>
     </html>

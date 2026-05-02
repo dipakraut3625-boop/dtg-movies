@@ -1,34 +1,57 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "../lib/supabase";
-import AuthModal from "./AuthModal";
 
 export default function AuthWrapper() {
-  const [showAuth, setShowAuth] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkUser = async () => {
-      const { data } = await supabase.auth.getUser();
+    const check = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      if (!data.user) {
-        setShowAuth(true);
+      const user = session?.user;
+
+      // 🔒 NOT LOGGED IN
+      if (!user && pathname !== "/login") {
+        router.replace("/login");
       }
+
+      // 🔓 LOGGED IN
+      if (user && pathname === "/login") {
+        router.replace("/");
+      }
+
+      setLoading(false);
     };
 
-    checkUser();
+    check();
 
-    // 🔥 listen for login/logout
-    const { data: listener } = supabase.auth.onAuthStateChange(
+    const { data: sub } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        setShowAuth(!session);
+        if (!session?.user) {
+          router.replace("/login");
+        } else {
+          router.replace("/");
+        }
       }
     );
 
-    return () => listener.subscription.unsubscribe();
-  }, []);
+    return () => sub.subscription.unsubscribe();
+  }, [pathname]);
 
-  if (!showAuth) return null;
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-black text-white">
+        Loading...
+      </div>
+    );
+  }
 
-  return <AuthModal onClose={() => setShowAuth(false)} />;
+  return null;
 }

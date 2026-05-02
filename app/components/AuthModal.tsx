@@ -52,7 +52,7 @@ export default function AuthModal({ onClose }: any) {
     // ✅ FORCE RELOAD (stable fix)
     setTimeout(() => {
       onClose();
-      window.location.href = "/";
+      window.location.href = "/login";
     }, 500);
   };
 
